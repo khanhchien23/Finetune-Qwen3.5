@@ -2,52 +2,20 @@
 # ===== CHẠY FILE NÀY LÀ ĐỦ - mọi thứ còn lại tự động =====
 set -e
 
-VENV_DIR=~/qwen_env
 MOUNT_DIR=~/gdrive_mount
 REMOTE_NAME="Chien"                               # tên remote rclone đã tạo
 DRIVE_FOLDER_ID="1EPC42nUpIEpTT8YwK_V9tgZ8XgaJ47Rl"
-SOURCE_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"   # thư mục chứa chính run.sh/train.py
+SOURCE_DIR=~/source_code
+VENV_DIR=~/qwen_env
 
 # ---------------------------------------------------------------------
-# 1) Tạo + kích hoạt virtual environment (chỉ tạo nếu chưa có)
+# 1) Pull code + cài thư viện - giao hết cho script nhỏ riêng
 # ---------------------------------------------------------------------
-if [ ! -d "$VENV_DIR" ]; then
-    echo ">> Tạo virtual environment lần đầu..."
-    python3.10 -m venv "$VENV_DIR"
-fi
+bash "$(dirname "${BASH_SOURCE[0]}")/pull_and_install.sh"
 source "$VENV_DIR/bin/activate"
 
 # ---------------------------------------------------------------------
-# 2) Cài thư viện - CHỈ chạy nếu chưa cài (đánh dấu bằng file .deps_installed)
-#    Dùng đúng phiên bản đã ghim trong notebook gốc (đã test chạy được),
-#    thay vì cài bản "mới nhất" dễ lệch phiên bản.
-# ---------------------------------------------------------------------
-MARKER="$VENV_DIR/.deps_installed"
-if [ ! -f "$MARKER" ]; then
-    echo ">> Cài thư viện lần đầu (sẽ mất vài phút)..."
-    pip install --upgrade -qqq pip uv
-
-    uv pip install -qqq \
-        "torch==2.8.0" "triton>=3.3.0" numpy pillow torchvision bitsandbytes xformers==0.0.32.post2 \
-        "unsloth_zoo[base] @ git+https://github.com/unslothai/unsloth-zoo" \
-        "unsloth[base] @ git+https://github.com/unslothai/unsloth"
-    uv pip install -qqq --no-deps "torchcodec==0.7.0"
-    uv pip install --upgrade --no-deps "tokenizers>=0.22.0,<=0.23.0" trl==0.22.2 unsloth unsloth_zoo
-    uv pip install transformers==5.2.0
-    uv pip uninstall -qqq flash-linear-attention fla-core || true
-    uv pip install --no-build-isolation causal_conv1d==1.6.0
-    uv pip install --no-deps --upgrade "torchao>=0.16.0"
-
-    uv pip install huggingface_hub wandb datasets
-
-    touch "$MARKER"
-    echo ">> Cài thư viện xong."
-else
-    echo ">> Thư viện đã cài từ trước, bỏ qua."
-fi
-
-# ---------------------------------------------------------------------
-# 3) Mount Google Drive - CHỈ mount nếu chưa mount (idempotent)
+# 2) Mount Google Drive - CHỈ mount nếu chưa mount (idempotent)
 # ---------------------------------------------------------------------
 if ! mountpoint -q "$MOUNT_DIR" 2>/dev/null; then
     echo ">> Mount Google Drive..."
@@ -65,11 +33,10 @@ else
 fi
 
 # ---------------------------------------------------------------------
-# 4) Kiểm tra đã đăng nhập HF / wandb chưa (chỉ cảnh báo, không tự login được
-#    vì cần nhập token thủ công 1 lần duy nhất trên máy này)
+# 3) Kiểm tra đã đăng nhập HF / wandb chưa
 # ---------------------------------------------------------------------
 if [ ! -f ~/.cache/huggingface/token ] && [ -z "$HF_TOKEN" ]; then
-    echo "!! CẢNH BÁO: chưa đăng nhập Hugging Face. Chạy: huggingface-cli login"
+    echo "!! CẢNH BÁO: chưa đăng nhập Hugging Face. Chạy: hf auth login"
     exit 1
 fi
 if [ ! -f ~/.netrc ] || ! grep -q "api.wandb.ai" ~/.netrc 2>/dev/null; then
@@ -78,7 +45,7 @@ if [ ! -f ~/.netrc ] || ! grep -q "api.wandb.ai" ~/.netrc 2>/dev/null; then
 fi
 
 # ---------------------------------------------------------------------
-# 5) Chạy training
+# 4) Chạy training
 # ---------------------------------------------------------------------
 echo ">> Bắt đầu train..."
 python "$SOURCE_DIR/train.py"
