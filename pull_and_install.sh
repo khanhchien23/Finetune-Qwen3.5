@@ -13,21 +13,47 @@ SUDO=""
 command -v sudo &>/dev/null && SUDO="sudo"   # nhiều image Docker chạy sẵn root, không có "sudo"
 
 # ---------------------------------------------------------------------
-# 0a) Đảm bảo có Python 3.10 - cài nếu máy mới chưa có (ảnh Vast.ai có thể
-#     chỉ có sẵn 3.11/3.12 mặc định, không phải lúc nào cũng có 3.10)
+# 0a) Tìm 1 bản Python >= 3.10 đã có sẵn trên máy (không ép đúng 3.10,
+#     vì các bản Ubuntu/image khác nhau có sẵn bản khác nhau: 3.10, 3.11, 3.12...)
 # ---------------------------------------------------------------------
-if ! command -v python3.10 &>/dev/null; then
-    echo ">> Chưa có python3.10, cài..."
+PYBIN=""
+for cand in python3.12 python3.11 python3.10 python3; do
+    if command -v "$cand" &>/dev/null; then
+        ver=$("$cand" -c 'import sys; print(f"{sys.version_info[0]}.{sys.version_info[1]}")')
+        major=$(echo "$ver" | cut -d. -f1); minor=$(echo "$ver" | cut -d. -f2)
+        if [ "$major" -eq 3 ] && [ "$minor" -ge 10 ]; then
+            PYBIN="$cand"
+            break
+        fi
+    fi
+done
+
+if [ -z "$PYBIN" ]; then
+    echo ">> Không có sẵn Python >= 3.10, cài python3.10..."
     if command -v apt-get &>/dev/null; then
         $SUDO apt-get update -qq
-        $SUDO apt-get install -y -qq python3.10 python3.10-venv python3-pip
+        if ! $SUDO apt-get install -y -qq python3.10 python3.10-venv python3-pip 2>/dev/null; then
+            echo ">> Kho mặc định không có python3.10 (thường do Ubuntu mới hơn 22.04)."
+            echo ">> Thêm kho deadsnakes để lấy python3.10..."
+            $SUDO apt-get install -y -qq software-properties-common
+            $SUDO add-apt-repository -y ppa:deadsnakes/ppa
+            $SUDO apt-get update -qq
+            $SUDO apt-get install -y -qq python3.10 python3.10-venv python3-pip
+        fi
+        PYBIN="python3.10"
     else
-        echo "!! Không tìm thấy apt-get, không tự cài được python3.10 trên hệ này."
-        echo "!! Cài thủ công rồi chạy lại script."
+        echo "!! Không tìm thấy apt-get, không tự cài được Python trên hệ này."
+        echo "!! Cài thủ công (cần Python >= 3.10) rồi chạy lại script."
         exit 1
     fi
 fi
-echo ">> python3.10: $(python3.10 --version)"
+
+# venv cần đúng gói "<tên-python>-venv" của bản đang dùng - đảm bảo đã có
+if ! "$PYBIN" -m venv --help &>/dev/null; then
+    $SUDO apt-get install -y -qq "${PYBIN}-venv" 2>/dev/null || true
+fi
+
+echo ">> Dùng: $PYBIN ($($PYBIN --version))"
 
 # ---------------------------------------------------------------------
 # 0b) Đảm bảo có nvcc (CUDA Toolkit) - causal_conv1d cần biên dịch lúc cài,
@@ -77,7 +103,7 @@ fi
 # ---------------------------------------------------------------------
 if [ ! -d "$VENV_DIR" ]; then
     echo ">> Tạo virtual environment lần đầu..."
-    python3.10 -m venv "$VENV_DIR"
+    "$PYBIN" -m venv "$VENV_DIR"
 fi
 source "$VENV_DIR/bin/activate"
 
