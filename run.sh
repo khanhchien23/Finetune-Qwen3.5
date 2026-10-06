@@ -6,13 +6,15 @@ MOUNT_DIR=~/gdrive_mount
 REMOTE_NAME="Chien"                               # tên remote rclone đã tạo
 DRIVE_FOLDER_ID="1EPC42nUpIEpTT8YwK_V9tgZ8XgaJ47Rl"
 SOURCE_DIR=~/source_code
-VENV_DIR=~/qwen_env
+CONDA_DIR=~/miniconda3
+ENV_NAME="qwen_env"
 
 # ---------------------------------------------------------------------
 # 1) Pull code + cài thư viện - giao hết cho script nhỏ riêng
 # ---------------------------------------------------------------------
 bash "$(dirname "${BASH_SOURCE[0]}")/pull_and_install.sh"
-source "$VENV_DIR/bin/activate"
+source "$CONDA_DIR/etc/profile.d/conda.sh"
+conda activate "$ENV_NAME"
 
 # ---------------------------------------------------------------------
 # 2) Mount Google Drive - CHỈ mount nếu chưa mount (idempotent)
