@@ -1,34 +1,59 @@
 #!/bin/bash
 # ===== "script nhỏ: pull source + cài thư viện" trong sơ đồ =====
-# Dùng conda cho TOÀN BỘ (Python + CUDA Toolkit/nvcc + thư viện Python).
-# Không cần sudo/apt-get, không phụ thuộc bản Linux/Ubuntu của máy đang chạy -
-# tránh đúng loại lỗi "không tìm thấy package" gặp phải khi dùng apt trên các
-# máy/image khác nhau.
+# Ưu tiên dùng conda/anaconda/miniconda ĐÃ CÓ trên máy. Chỉ cài Miniconda
+# mới nếu không tìm thấy conda nào. Không cần sudo/apt-get.
 set -e
 
 REPO_URL="https://github.com/khanhchien23/Finetune-Qwen3.5.git"
 SOURCE_DIR=~/source_code
-CONDA_DIR=~/miniconda3
 ENV_NAME="qwen_env"
 PY_VERSION="3.10"
 CUDA_VERSION="12.8.0"   # phải khớp bản torch==2.8.0+cu128 cài bên dưới
 
 # ---------------------------------------------------------------------
-# 0) Cài Miniconda nếu chưa có - cài gọn trong $HOME, KHÔNG cần sudo
+# Tìm conda đã có sẵn (anaconda / miniconda / conda ở các vị trí phổ biến)
+# In ra đường dẫn base nếu tìm thấy, return 1 nếu không có.
 # ---------------------------------------------------------------------
-if [ ! -d "$CONDA_DIR" ]; then
-    echo ">> Cài Miniconda..."
+find_conda_base() {
+    local c
+    # 1) conda đang có trong PATH / shell function
+    if command -v conda &>/dev/null; then
+        c="$(conda info --base 2>/dev/null || true)"
+        if [ -n "$c" ] && [ -f "$c/etc/profile.d/conda.sh" ]; then
+            echo "$c"; return 0
+        fi
+    fi
+    # 2) các vị trí cài đặt phổ biến
+    for c in \
+        "$HOME/anaconda3" "$HOME/miniconda3" "$HOME/anaconda" "$HOME/miniconda" \
+        /opt/anaconda3 /opt/miniconda3 /opt/conda \
+        /usr/local/anaconda3 /usr/local/miniconda3 /usr/local/conda; do
+        if [ -f "$c/etc/profile.d/conda.sh" ]; then
+            echo "$c"; return 0
+        fi
+    done
+    return 1
+}
+
+# ---------------------------------------------------------------------
+# 0) Dùng conda có sẵn; nếu chưa có thì mới cài Miniconda vào $HOME
+# ---------------------------------------------------------------------
+if CONDA_DIR="$(find_conda_base)"; then
+    echo ">> Đã có conda tại: $CONDA_DIR -> bỏ qua bước cài Miniconda."
+else
+    CONDA_DIR=~/miniconda3
+    echo ">> Không tìm thấy conda/anaconda, cài Miniconda vào $CONDA_DIR..."
     wget -q https://repo.anaconda.com/miniconda/Miniconda3-latest-Linux-x86_64.sh -O /tmp/miniconda.sh
     bash /tmp/miniconda.sh -b -p "$CONDA_DIR"
     rm /tmp/miniconda.sh
 fi
+export CONDA_DIR
 source "$CONDA_DIR/etc/profile.d/conda.sh"
 
-# Dùng hẳn kênh conda-forge (cộng đồng, miễn phí), KHÔNG dùng kênh "defaults"
-# của Anaconda - kênh đó từ 2024 yêu cầu chấp nhận Terms of Service thủ công
-# trước khi dùng, gây lỗi "CondaToSNonInteractiveError" trên máy mới chưa
-# từng accept. conda-forge không bị ràng buộc này.
-conda config --add channels conda-forge
+# Dùng hẳn kênh conda-forge, KHÔNG dùng kênh "defaults" của Anaconda
+# (tránh lỗi CondaToSNonInteractiveError do chưa accept Terms of Service).
+# --add có thể báo trùng nếu đã có, nên chỉ thêm khi chưa có.
+conda config --show channels 2>/dev/null | grep -q conda-forge || conda config --add channels conda-forge
 conda config --set channel_priority strict
 
 # ---------------------------------------------------------------------
@@ -54,9 +79,10 @@ echo ">> Đang dùng: $(python --version) (conda env: $ENV_NAME)"
 
 # ---------------------------------------------------------------------
 # 3) Cài CUDA Toolkit (gồm nvcc) + thư viện Python - CHỈ chạy nếu chưa cài
-#    (đánh dấu bằng file .deps_installed, nằm trong chính thư mục env)
+#    Marker nằm trong chính env đang active ($CONDA_PREFIX), đúng cả khi
+#    conda nằm ở /opt/... và env được tạo ở ~/.conda/envs.
 # ---------------------------------------------------------------------
-MARKER="$CONDA_DIR/envs/$ENV_NAME/.deps_installed"
+MARKER="$CONDA_PREFIX/.deps_installed"
 if [ ! -f "$MARKER" ]; then
     echo ">> Cài CUDA Toolkit ${CUDA_VERSION} qua conda (có nvcc, không cần apt)..."
     conda install -y --override-channels -c "nvidia/label/cuda-${CUDA_VERSION}" -c conda-forge cuda-toolkit
@@ -95,4 +121,4 @@ else
     echo ">> Thư viện đã cài từ trước, bỏ qua."
 fi
 
-echo ">> pull_and_install.sh xong. Code ở: $SOURCE_DIR | conda env: $ENV_NAME"
+echo ">> pull_and_install.sh xong. Code ở: $SOURCE_DIR | conda: $CONDA_DIR | env: $ENV_NAME"

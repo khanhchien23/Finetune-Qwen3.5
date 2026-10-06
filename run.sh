@@ -6,13 +6,14 @@ MOUNT_DIR=~/gdrive_mount
 REMOTE_NAME="Chien"                               # tên remote rclone đã tạo
 DRIVE_FOLDER_ID="1EPC42nUpIEpTT8YwK_V9tgZ8XgaJ47Rl"
 SOURCE_DIR=~/source_code
-CONDA_DIR=~/miniconda3
 ENV_NAME="qwen_env"
 
 # ---------------------------------------------------------------------
-# 1) Pull code + cài thư viện - giao hết cho script nhỏ riêng
+# 1) Pull code + cài thư viện - dùng "source" để nhận lại CONDA_DIR
+#    mà script con đã dò được (anaconda có sẵn hoặc miniconda mới cài),
+#    đồng thời env đã được activate sẵn.
 # ---------------------------------------------------------------------
-bash "$(dirname "${BASH_SOURCE[0]}")/pull_and_install.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/pull_and_install.sh"
 source "$CONDA_DIR/etc/profile.d/conda.sh"
 conda activate "$ENV_NAME"
 
@@ -36,8 +37,6 @@ fi
 
 # ---------------------------------------------------------------------
 # 3) Kiểm tra đã đăng nhập HF / wandb chưa
-#    Dùng lệnh "whoami" thay vì chỉ đoán vị trí file cache - đáng tin hơn,
-#    không phụ thuộc đúng version huggingface_hub lưu token ở đâu.
 # ---------------------------------------------------------------------
 if [ -z "$HF_TOKEN" ] && ! hf auth whoami &>/dev/null; then
     echo "!! CẢNH BÁO: chưa đăng nhập Hugging Face. Chạy: hf auth login"
