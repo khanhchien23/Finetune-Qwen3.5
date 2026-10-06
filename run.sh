@@ -36,12 +36,14 @@ fi
 
 # ---------------------------------------------------------------------
 # 3) Kiểm tra đã đăng nhập HF / wandb chưa
+#    Dùng lệnh "whoami" thay vì chỉ đoán vị trí file cache - đáng tin hơn,
+#    không phụ thuộc đúng version huggingface_hub lưu token ở đâu.
 # ---------------------------------------------------------------------
-if [ ! -f ~/.cache/huggingface/token ] && [ -z "$HF_TOKEN" ]; then
+if [ -z "$HF_TOKEN" ] && ! hf auth whoami &>/dev/null; then
     echo "!! CẢNH BÁO: chưa đăng nhập Hugging Face. Chạy: hf auth login"
     exit 1
 fi
-if [ ! -f ~/.netrc ] || ! grep -q "api.wandb.ai" ~/.netrc 2>/dev/null; then
+if [ -z "$WANDB_API_KEY" ] && { [ ! -f ~/.netrc ] || ! grep -q "api.wandb.ai" ~/.netrc 2>/dev/null; }; then
     echo "!! CẢNH BÁO: chưa đăng nhập wandb. Chạy: wandb login"
     exit 1
 fi

@@ -47,7 +47,7 @@ fi
 # ---------------------------------------------------------------------
 if ! conda env list | grep -qE "^${ENV_NAME}\s"; then
     echo ">> Tạo conda environment lần đầu (Python ${PY_VERSION})..."
-    conda create -y -n "$ENV_NAME" --override-channels -c conda-forge "python=${PY_VERSION}"
+    conda create -y -n "$ENV_NAME" --override-channels -c conda-forge "python=${PY_VERSION}" pip
 fi
 conda activate "$ENV_NAME"
 echo ">> Đang dùng: $(python --version) (conda env: $ENV_NAME)"
@@ -61,6 +61,9 @@ if [ ! -f "$MARKER" ]; then
     echo ">> Cài CUDA Toolkit ${CUDA_VERSION} qua conda (có nvcc, không cần apt)..."
     conda install -y --override-channels -c "nvidia/label/cuda-${CUDA_VERSION}" -c conda-forge cuda-toolkit
     echo ">> nvcc: $(nvcc --version | tail -1)"
+
+    echo ">> Cài trình biên dịch C/C++ qua conda (causal_conv1d cần gcc/g++ để build)..."
+    conda install -y --override-channels -c conda-forge c-compiler cxx-compiler
 
     echo ">> Cài rclone qua conda (để mount Google Drive, không cần apt)..."
     conda install -y --override-channels -c conda-forge rclone
