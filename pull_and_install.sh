@@ -4,9 +4,62 @@
 # Không mount Drive, không chạy train - đó là việc của run.sh (gọi script này trước).
 set -e
 
-REPO_URL="https://github.com/khanhchien23/Finetune-Qwen3.5.git"   # <-- SỬA đúng repo của bạn
+REPO_URL="https://github.com/khanhchien23/Finetune-Qwen3.5.git"
 SOURCE_DIR=~/source_code
 VENV_DIR=~/qwen_env
+CUDA_VERSION="12.8"   # phải khớp bản torch==2.8.0+cu128 đang cài bên dưới
+
+SUDO=""
+command -v sudo &>/dev/null && SUDO="sudo"   # nhiều image Docker chạy sẵn root, không có "sudo"
+
+# ---------------------------------------------------------------------
+# 0a) Đảm bảo có Python 3.10 - cài nếu máy mới chưa có (ảnh Vast.ai có thể
+#     chỉ có sẵn 3.11/3.12 mặc định, không phải lúc nào cũng có 3.10)
+# ---------------------------------------------------------------------
+if ! command -v python3.10 &>/dev/null; then
+    echo ">> Chưa có python3.10, cài..."
+    if command -v apt-get &>/dev/null; then
+        $SUDO apt-get update -qq
+        $SUDO apt-get install -y -qq python3.10 python3.10-venv python3-pip
+    else
+        echo "!! Không tìm thấy apt-get, không tự cài được python3.10 trên hệ này."
+        echo "!! Cài thủ công rồi chạy lại script."
+        exit 1
+    fi
+fi
+echo ">> python3.10: $(python3.10 --version)"
+
+# ---------------------------------------------------------------------
+# 0b) Đảm bảo có nvcc (CUDA Toolkit) - causal_conv1d cần biên dịch lúc cài,
+#     nhiều máy chỉ có driver GPU (nvidia-smi chạy được) mà THIẾU trình biên
+#     dịch nvcc - 2 thứ khác nhau. Nếu máy thuê dùng image CUDA "devel" sẵn
+#     thì đoạn này sẽ tự bỏ qua (nvcc đã có), không tốn thời gian cài lại.
+# ---------------------------------------------------------------------
+if ! command -v nvcc &>/dev/null; then
+    echo ">> Chưa có nvcc, cài CUDA Toolkit $CUDA_VERSION..."
+    if command -v apt-get &>/dev/null; then
+        cd /tmp
+        wget -q https://developer.download.nvidia.com/compute/cuda/repos/wsl-ubuntu/x86_64/cuda-keyring_1.1-1_all.deb
+        $SUDO dpkg -i cuda-keyring_1.1-1_all.deb
+        $SUDO apt-get update -qq
+        CUDA_PKG="cuda-toolkit-${CUDA_VERSION/./-}"   # 12.8 -> cuda-toolkit-12-8
+        $SUDO apt-get install -y -qq "$CUDA_PKG" build-essential
+        cd - >/dev/null
+
+        export PATH="/usr/local/cuda-${CUDA_VERSION}/bin:$PATH"
+        export LD_LIBRARY_PATH="/usr/local/cuda-${CUDA_VERSION}/lib64:$LD_LIBRARY_PATH"
+        # Lưu lại cho các lần mở terminal sau (không chỉ phiên script này)
+        if ! grep -q "cuda-${CUDA_VERSION}/bin" ~/.bashrc 2>/dev/null; then
+            echo "export PATH=/usr/local/cuda-${CUDA_VERSION}/bin:\$PATH" >> ~/.bashrc
+            echo "export LD_LIBRARY_PATH=/usr/local/cuda-${CUDA_VERSION}/lib64:\$LD_LIBRARY_PATH" >> ~/.bashrc
+        fi
+    else
+        echo "!! Không tìm thấy apt-get, không tự cài được CUDA Toolkit trên hệ này."
+        echo "!! Cài thủ công rồi chạy lại script."
+        exit 1
+    fi
+fi
+echo ">> nvcc: $(nvcc --version | tail -1)"
 
 # ---------------------------------------------------------------------
 # 1) Pull code mới nhất từ GitHub
@@ -50,7 +103,6 @@ if [ ! -f "$MARKER" ]; then
 
     uv pip install huggingface_hub wandb datasets
 
-    # Nếu repo của bạn có requirements.txt riêng, cài thêm (không bắt buộc)
     if [ -f "$SOURCE_DIR/requirements.txt" ]; then
         uv pip install -r "$SOURCE_DIR/requirements.txt"
     fi
