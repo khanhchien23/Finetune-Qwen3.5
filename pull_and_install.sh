@@ -24,6 +24,13 @@ if [ ! -d "$CONDA_DIR" ]; then
 fi
 source "$CONDA_DIR/etc/profile.d/conda.sh"
 
+# Dùng hẳn kênh conda-forge (cộng đồng, miễn phí), KHÔNG dùng kênh "defaults"
+# của Anaconda - kênh đó từ 2024 yêu cầu chấp nhận Terms of Service thủ công
+# trước khi dùng, gây lỗi "CondaToSNonInteractiveError" trên máy mới chưa
+# từng accept. conda-forge không bị ràng buộc này.
+conda config --add channels conda-forge
+conda config --set channel_priority strict
+
 # ---------------------------------------------------------------------
 # 1) Pull code mới nhất từ GitHub
 # ---------------------------------------------------------------------
@@ -40,7 +47,7 @@ fi
 # ---------------------------------------------------------------------
 if ! conda env list | grep -qE "^${ENV_NAME}\s"; then
     echo ">> Tạo conda environment lần đầu (Python ${PY_VERSION})..."
-    conda create -y -n "$ENV_NAME" "python=${PY_VERSION}"
+    conda create -y -n "$ENV_NAME" --override-channels -c conda-forge "python=${PY_VERSION}"
 fi
 conda activate "$ENV_NAME"
 echo ">> Đang dùng: $(python --version) (conda env: $ENV_NAME)"
@@ -52,7 +59,7 @@ echo ">> Đang dùng: $(python --version) (conda env: $ENV_NAME)"
 MARKER="$CONDA_DIR/envs/$ENV_NAME/.deps_installed"
 if [ ! -f "$MARKER" ]; then
     echo ">> Cài CUDA Toolkit ${CUDA_VERSION} qua conda (có nvcc, không cần apt)..."
-    conda install -y -c "nvidia/label/cuda-${CUDA_VERSION}" cuda-toolkit
+    conda install -y --override-channels -c "nvidia/label/cuda-${CUDA_VERSION}" -c conda-forge cuda-toolkit
     echo ">> nvcc: $(nvcc --version | tail -1)"
 
     echo ">> Cài thư viện Python (sẽ mất vài phút)..."
