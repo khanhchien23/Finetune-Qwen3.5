@@ -62,6 +62,10 @@ if [ ! -f "$MARKER" ]; then
     conda install -y --override-channels -c "nvidia/label/cuda-${CUDA_VERSION}" -c conda-forge cuda-toolkit
     echo ">> nvcc: $(nvcc --version | tail -1)"
 
+    echo ">> Cài rclone qua conda (để mount Google Drive, không cần apt)..."
+    conda install -y --override-channels -c conda-forge rclone
+    echo ">> rclone: $(rclone version | head -1)"
+
     echo ">> Cài thư viện Python (sẽ mất vài phút)..."
     pip install --upgrade -qqq pip uv
 
